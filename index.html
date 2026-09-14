@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLUSH STUDIO</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&family=Inter:wght@300&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box} body{margin:0;background:#f6f1eb;color:#3d2e2e;font-family:'Inter',sans-serif}
+ .top{text-align:center;padding:28px 20px 8px}
+ .top h1{font-family:'Cormorant Garamond',serif;font-weight:300;letter-spacing:.35em;margin:0;font-size:26px}
+ .top p{font-size:10px;letter-spacing:.22em;opacity:.6;margin:8px 0 0}
+ .stage{position:relative;width:92%;max-width:420px;margin:16px auto;border-radius:18px;overflow:hidden;background:#e8ddd2;aspect-ratio:3/4}
+  video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+ .badge{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:#f6f1ebcc;backdrop-filter:blur(6px);padding:8px 16px;border-radius:20px;font-size:10px;letter-spacing:.2em}
+ .panel{width:92%;max-width:420px;margin:20px auto}
+ .lbl{font-size:10px;letter-spacing:.25em;opacity:.6;margin:18px 0 10px}
+ .colors{display:flex;gap:14px;overflow-x:auto}
+ .c{text-align:center;min-width:54px}
+ .dot{width:46px;height:46px;border-radius:50%;border:3px solid transparent;margin:0 auto;cursor:pointer}
+ .c.active.dot{border-color:#3d2e2e;box-shadow:0 0 0 3px #f6f1eb,0 0 0 5px #d9cbc0}
+ .c span{font-size:8px;letter-spacing:.1em;display:block;margin-top:6px}
+ .row{display:flex;align-items:center;gap:12px;margin:12px 0}
+ .row label{font-size:10px;letter-spacing:.15em;opacity:.6;min-width:80px}
+  input[type=range]{flex:1;accent-color:#3d2e2e}
+ .btns{display:flex;gap:10px;margin-top:16px}
+ .btn{flex:1;padding:12px;border-radius:12px;border:1px solid #d9cbc0;background:white;font-size:11px;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div class="top"><h1>BLUSH STUDIO</h1><p>EXPERIMENTE TONS EM TEMPO REAL</p></div>
+<div class="stage"><video id="v" autoplay playsinline muted></video><canvas id="c"></canvas><div class="badge">✦ FILTRO ATIVO</div></div>
+<div class="panel">
+  <div class="lbl">TOM DE BLUSH</div>
+  <div class="colors" id="cols">
+    <div class="c active" data-col="#C2856A"><div class="dot" style="background:#C2856A"></div><span>NUDE</span></div>
+    <div class="c" data-col="#E93A6F"><div class="dot" style="background:#E93A6F"></div><span>ROSINHA</span></div>
+    <div class="c" data-col="#F46A3A"><div class="dot" style="background:#F46A3A"></div><span>CORAL</span></div>
+    <div class="c" data-col="#E8963A"><div class="dot" style="background:#E8963A"></div><span>PÊSSEGO</span></div>
+    <div class="c" data-col="#8B4E7A"><div class="dot" style="background:#8B4E7A"></div><span>MALVA</span></div>
+    <div class="c" data-col="#C53A6B"><div class="dot" style="background:#C53A6B"></div><span>ROSÉ</span></div>
+  </div>
+  <div class="lbl">AJUSTES</div>
+  <div class="row"><label>INTENSIDADE</label><input id="int" type="range" min="0" max="1" step="0.05" value="0.6"></div>
+  <div class="row"><label>TAMANHO</label><input id="sz" type="range" min="20" max="80" value="42"></div>
+  <div class="btns">
+    <button class="btn" onclick="document.getElementById('file').click()">📷 FOTO</button>
+    <button class="btn" id="shot">📸 SALVAR</button>
+  </div>
+</div>
+<input type="file" id="file" accept="image/*" hidden>
+
+<script type="module">
+import {FaceLandmarker,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm";
+const v=document.getElementById('v'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let fm, color="#C2856A", intens=0.6, size=42, imgMode=false;
+const hex=(h,a)=>{let r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return `rgba(${r},${g},${b},${a})`};
+document.getElementById('cols').onclick=e=>{let el=e.target.closest('.c');if(!el)return;document.querySelectorAll('.c').forEach(x=>x.classList.remove('active'));el.classList.add('active');color=el.dataset.col};
+document.getElementById('int').oninput=e=>intens=e.target.value;
+document.getElementById('sz').oninput=e=>size=e.target.value;
+async function init(){
+  let fs=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+  fm=await FaceLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"},runningMode:"VIDEO",numFaces:1});
+  try{
+    let s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
+    v.srcObject=s; v.onloadedmetadata=()=>{cv.width=v.videoWidth;cv.height=v.videoHeight;requestAnimationFrame(loop)};
+  }catch(e){alert("Libera a câmera pra testar em tempo real, ou usa o botão FOTO")}
+}
+async function loop(){
+  if(v.readyState>=2 &&!imgMode){
+    let r=fm.detectForVideo(v,performance.now()); ctx.clearRect(0,0,cv.width,cv.height);
+    if(r.faceLandmarks[0]) draw(r.faceLandmarks[0]);
+  }
+  if(!imgMode) requestAnimationFrame(loop);
+}
+function draw(lm){
+  let pts=[lm[123],lm[352]]; // bochechas esq/dir
+  pts.forEach(p=>{
+    let x=p.x*cv.width, y=p.y*cv.height;
+    let g=ctx.createRadialGradient(x,y,0,x,y,size);
+    g.addColorStop(0,hex(color,intens)); g.addColorStop(1,hex(color,0));
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,size,0,Math.PI*2); ctx.fill();
+  });
+}
+document.getElementById('file').onchange=async e=>{
+  let f=e.target.files[0]; if(!f)return; imgMode=true;
+  let img=new Image(); img.src=URL.createObjectURL(f); await img.decode();
+  cv.width=img.width; cv.height=img.height; ctx.clearRect(0,0,cv.width,cv.height); ctx.save(); ctx.scale(-1,1); ctx.drawImage(img,-cv.width,0,cv.width,cv.height); ctx.restore();
+  let r=fm.detect(img); if(r.faceLandmarks[0]) draw(r.faceLandmarks[0]);
+};
+document.getElementById('shot').onclick=()=>{let a=document.createElement('a'); a.download='blush-studio.png'; a.href=cv.toDataURL(); a.click()};
+init();
+</script>
+</body>
+</html>
